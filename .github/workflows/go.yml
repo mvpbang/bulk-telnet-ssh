@@ -33,11 +33,6 @@ jobs:
         with:
           go-version: '1.20'
 
-      # 获取当前tag的版本
-      - name: Get version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
-
       # 从该tag打上一个release标签(会output一些参数,后面才能使用)
       - name: Create Release
         id: create_release
@@ -45,8 +40,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          release_name: ${{ steps.get_version.outputs.VERSION }}
+          release_name: ${{ github.ref }}
           draft: false
           prerelease: false
 
