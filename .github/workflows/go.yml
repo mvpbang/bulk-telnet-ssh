@@ -58,7 +58,7 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Packaging...
-        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz  bulk-telnet
+        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz  bulk-telnet
 
       - name: Uploading assets...
         if: ${{ !env.ACT }}
@@ -68,6 +68,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz
-          asset_name: bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz
+          asset_path: ./bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
+          asset_name: bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
           asset_content_type: application/gzip
