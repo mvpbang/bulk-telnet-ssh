@@ -1,16 +1,16 @@
 name: Go
 
-#on:
-#  push:
-#    tags:
-#      - v*
-
-
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    tags:
+      - v*
+
+
+#on:
+#  push:
+#    branches: [ "main" ]
+#  pull_request:
+#    branches: [ "main" ]
 
 jobs:
   build:
@@ -33,10 +33,10 @@ jobs:
         with:
           go-version: '1.20'
 
-      - name: Get version
-        id: get_version
+      #- name: Get version
+        #id: get_version
         #run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        #run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       # 从该tag打上一个release标签(会output一些参数,后面才能使用)
       - name: Create Release
@@ -45,8 +45,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          release_name: ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
           draft: false
           prerelease: false
 
@@ -58,7 +58,7 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Packaging...
-        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz  bulk-telnet
+        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz  bulk-telnet
 
       - name: Uploading assets...
         if: ${{ !env.ACT }}
@@ -68,6 +68,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
-          asset_name: bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
+          asset_path: ./bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz
+          asset_name: bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}-${{ release_name }}.tgz
           asset_content_type: application/gzip
