@@ -38,7 +38,7 @@ jobs:
           CGO_ENABLED: 0
 
       - name: Packaging...
-        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
+        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz  bulk-telnet
 
       - name: Uploading assets...
         if: ${{ !env.ACT }}
