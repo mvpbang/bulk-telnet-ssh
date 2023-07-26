@@ -28,14 +28,17 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.20
-      - name: Making kubectl-karmada
-        run: make kubectl-karmada
+
+      - name: build
+        run: go build -o bulk-telnet
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
 
       - name: Packaging...
-        run: tar czf kubectl-karmada-${{ matrix.goos }}-${{ matrix.goarch }}.tgz kubectl-karmada LICENSE
+        run: tar czf bulk-telnet-${{ matrix.goos }}-${{ matrix.goarch }}.tgz
+
       - name: Uploading assets...
         if: ${{ !env.ACT }}
         id: upload-release-asset
