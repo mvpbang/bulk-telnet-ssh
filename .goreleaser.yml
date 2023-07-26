@@ -23,6 +23,8 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    files:
+      - example-ips.yml
 checksum:
   name_template: 'checksums.txt'
 snapshot:

@@ -13,6 +13,39 @@ import (
 	"time"
 )
 
+/*
+需求：
+1、并发登录linux
+2、并发在linux上测试连通性
+*/
+
+//ips.yml
+/*
+# 默认ssh登录账户密码
+auth:
+    user: bang
+    password: 321321
+
+# 批量ssh登录ip
+ips:
+    -  172.20.189.75:22
+    -  172.20.189.75:22
+    -  172.20.189.75:22
+    -  172.20.189.73:22
+
+# 测试端口连通性
+target:
+    -  172.20.189.75:22
+    -  172.20.189.75:21
+    -  172.20.189.75:23
+    -  172.20.189.71:23
+*/
+
+// changelog
+/*
+v3.0 在arm上使用Dial()效果不行，改为telnet形式，根据响应内容判断是否端口的连通性
+*/
+
 // 定义yaml结构体
 
 type Top struct {
@@ -35,7 +68,6 @@ func ReadYaml() {
 		log.Println(err)
 		return
 	}
-
 	// 解码
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
@@ -86,26 +118,24 @@ func TestPong(target string, wg *sync.WaitGroup) {
 			// 测试连通性
 			tHost := strings.Split(target, ":")[0]
 			tPort := strings.Split(target, ":")[1]
-			cmd := fmt.Sprintf("echo quit | timeout --signal=9 6 telnet %s %s", tHost, tPort)
+			cmd := fmt.Sprintf("curl -s -m 3 telnet://%s:%s", tHost, tPort)
 
 			buf, err := session.CombinedOutput(cmd)
 			if err != nil {
 				//log.Println(err)
 			}
-			//log.Println(string(buf))
+			log.Println(string(buf))
 
-			// 判断端口是否可以正常连接上
-			if strings.Count(string(buf), "Killed") > 0 {
-				log.Printf("%s killed \n", target)
-			} else if strings.Count(string(buf), "refused") > 0 {
-				log.Printf("%s refused\n", target)
-			} else if strings.Count(string(buf), "timed out") > 0 {
-				log.Printf("%s telnet %s timed out\n", ip, target)
-			} else if strings.Count(string(buf), "bash") > 0 {
-				log.Printf("%s telnet not installed %s \n", ip, target)
-			} else {
-				log.Printf("%s telnet %s pong\n", ip, target)
-			}
+			//// 判断端口是否可以正常连接上
+			//if strings.Count(string(buf), "refused") > 0 {
+			//	log.Printf("%s refused\n", target)
+			//} else if strings.Count(string(buf), "timed out") > 0 {
+			//	log.Printf("%s telnet %s timed out\n", ip, target)
+			//} else if strings.Count(string(buf), "bash") > 0 {
+			//	log.Printf("%s telnet not installed %s \n", ip, target)
+			//} else {
+			//	log.Printf("%s telnet %s pong\n", ip, target)
+			//}
 		}(ip)
 	}
 
