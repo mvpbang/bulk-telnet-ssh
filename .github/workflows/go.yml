@@ -10,16 +10,16 @@ on:
     branches: [ "main" ]
 
 jobs:
-
-  strategy:
-    matrix:
-      include:
-        - goarch: amd64
-          goos: linux
-        - goarch: arm64
-          goos: linux
-        - goarch: amd64
-          goos: windows
+  build:
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            goos: linux
+          - goarch: arm64
+            goos: linux
+          - goarch: amd64
+            goos: windows
 
     steps:
       - uses: actions/checkout@master
