@@ -36,7 +36,7 @@ jobs:
       - name: Get version
         id: get_version
         #run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
-        run: echo "VERSION=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       # 从该tag打上一个release标签(会output一些参数,后面才能使用)
       - name: Create Release
