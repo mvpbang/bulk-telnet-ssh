@@ -25,6 +25,7 @@ archives:
         format: zip
     files:
       - example-ips.yml
+      - README.md
 checksum:
   name_template: 'checksums.txt'
 snapshot:
