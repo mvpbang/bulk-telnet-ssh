@@ -1,0 +1,24 @@
+#### 探测类型
+#  local 探测联通性：window(src)->linux(target)
+#  ssh   探测连通性：window->linuxA(src)->linuxB(target)
+probe_type: local
+
+#### local 需要配置目标地址
+local_target:
+  - 127.0.0.1:22
+  - 127.0.0.1:8080
+
+#### ssh 需要配置登陆信息及目标地址
+ssh_login:
+  # 默认ssh登录账户密码
+  auth:
+    user: root
+    password: 321321
+  # 批量ssh登录ip
+  hosts:
+     - 172.24.20.30:22
+
+# 测试目标地址连通性
+ssh_target:
+  - 127.0.0.1:22
+  - 192.168.157.1:8080
