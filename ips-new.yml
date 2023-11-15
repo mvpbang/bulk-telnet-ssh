@@ -7,16 +7,17 @@ probe_type: local
 local_target:
   - 127.0.0.1:22
   - 127.0.0.1:8080
+  - 127.0.0.1:5000
 
 #### ssh 需要配置登陆信息及目标地址
 ssh_login:
   # 默认ssh登录账户密码
   auth:
     user: root
-    password: 321321
+    password: redhat
   # 批量ssh登录ip
   hosts:
-     - 172.24.20.30:22
+     - 172.24.20.31:22
 
 # 测试目标地址连通性
 ssh_target:

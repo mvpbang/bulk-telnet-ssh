@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-func ProbeSsh(target string, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func ProbeSsh(target string) {
 	var wgIp sync.WaitGroup
 	wgIp.Add(len(Config.SshLogin.Hosts))
 
@@ -37,9 +35,15 @@ func ProbeSsh(target string, wg *sync.WaitGroup) {
 			}
 			defer client.Close()
 
-			//
-			client.Dial("tcp", "")
+			// probe
+			conn, err := client.Dial("tcp", target)
+			if conn == nil {
+				log.Printf("ok %s %s \n", Config.ProbeType, target)
+				defer conn.Close()
 
+			} else {
+				log.Printf("false %s %s \n", Config.ProbeType, err)
+			}
 		}(ip)
 	}
 
