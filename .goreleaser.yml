@@ -24,8 +24,9 @@ archives:
       - goos: windows
         format: zip
     files:
-      - example-ips.yml
+      - ips.yml
       - README.md
+      - CHANGELOG.md
 checksum:
   name_template: 'checksums.txt'
 snapshot:

@@ -5,6 +5,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -29,7 +30,7 @@ var config Top
 
 func ReadYaml() {
 	// 读取yml
-	yamlFile, err := os.ReadFile("ips.yml")
+	yamlFile, err := ioutil.ReadFile("ips.yml")
 	if err != nil {
 		log.Println(err)
 		return
@@ -52,6 +53,8 @@ func TestPong(target string, wg *sync.WaitGroup) {
 	wgIp.Add(len(config.IPs))
 
 	for _, ip := range config.IPs {
+		//wgIp.Add(1)
+
 		go func(ip string) {
 			defer wgIp.Done()
 
@@ -92,21 +95,16 @@ func TestPong(target string, wg *sync.WaitGroup) {
 			//log.Println(string(buf))
 
 			// 判断端口是否可以正常连接上
-			switch {
-			case strings.Contains(string(buf), "Killed"):
-				log.Printf("失败 %s killed %s\n", ip, target)
-			case strings.Contains(string(buf), "refused"):
-				log.Printf("失败 %s refused %s\n", ip, target)
-			case strings.Contains(string(buf), "timed out"):
-				log.Printf("失败 %s timed out %s\n", ip, target)
-			case strings.Contains(string(buf), "bash") || strings.Contains(string(buf), "No such file or directory"):
-				log.Printf("失败 %s telnet not installed %s\n", ip, target)
-			// pong
-			case strings.Contains(string(buf), "^]"):
-				log.Printf("成功 %s pong %s\n", ip, target)
-			// no match print
-			default:
-				log.Println("失败 " + string(buf))
+			if strings.Count(string(buf), "Killed") > 0 {
+				log.Printf("%s killed \n", target)
+			} else if strings.Count(string(buf), "refused") > 0 {
+				log.Printf("%s refused\n", target)
+			} else if strings.Count(string(buf), "timed out") > 0 {
+				log.Printf("%s telnet %s timed out\n", ip, target)
+			} else if strings.Count(string(buf), "bash") > 0 {
+				log.Printf("%s telnet not installed %s \n", ip, target)
+			} else {
+				log.Printf("%s telnet %s pong\n", ip, target)
 			}
 		}(ip)
 	}
@@ -127,16 +125,12 @@ func init() {
 
 func main() {
 	ReadYaml()
-	// linux default MaxSessions 10
-	if len(config.Target) > 10 {
-		log.Println("target more than 10, please less than 10")
-		return
-	}
-	// loop
+	//loop
 	var wg sync.WaitGroup
 	for _, target := range config.Target {
 		wg.Add(1)
 		go TestPong(target, &wg)
+		//fmt.Println("+++++++++++++", target)
 	}
 	// Wait for all login goroutines to finish
 	wg.Wait()
