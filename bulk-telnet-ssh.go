@@ -59,7 +59,7 @@ func doTelnet(target string, ch chan int) {
 			})
 
 			if err != nil {
-				//登录失败跳出，继续下次执行
+				// login fail continue to next ip
 				log.Printf("login false %s, err:%s\n: ", ip, err)
 				return
 			}
@@ -110,7 +110,7 @@ func doTelnet(target string, ch chan int) {
 }
 
 func init() {
-	logFile2, err := os.OpenFile(".//check.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile2, err := os.OpenFile("ssh.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	handleErr(err)
 
 	mw := io.MultiWriter(os.Stdout, logFile2)
