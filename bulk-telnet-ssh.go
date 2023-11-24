@@ -35,78 +35,68 @@ func readYaml() {
 	handleErr(err)
 }
 
-//测试联通性
+// 测试联通性
+func doTelnet(src string, target string, sem chan struct{}, wg *sync.WaitGroup) {
+	defer func() {
+		// 释放信号通告，允许新的会话加入
+		<-sem
+		wg.Done()
+	}()
+	// 从通道获取信号，满了则阻塞
+	sem <- struct{}{}
 
-func doTelnet(target string, ch chan int) {
-	defer fmt.Println("waiting...final result to check log...")
+	// Create a SSH client
+	client, err := ssh.Dial("tcp", src, &ssh.ClientConfig{
+		User: config.Auth.User,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(config.Auth.Password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         3 * time.Second,
+	})
 
-	// 并发登陆linux
-	var wgIp sync.WaitGroup
-	wgIp.Add(len(config.IPs))
-
-	for _, ip := range config.IPs {
-		go func(ip string) {
-			defer wgIp.Done()
-
-			// Create a SSH client
-			client, err := ssh.Dial("tcp", ip, &ssh.ClientConfig{
-				User: config.Auth.User,
-				Auth: []ssh.AuthMethod{
-					ssh.Password(config.Auth.Password),
-				},
-				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-				Timeout:         3 * time.Second,
-			})
-
-			if err != nil {
-				// login fail continue to next ip
-				log.Printf("login false %s, err:%s\n: ", ip, err)
-				return
-			}
-			defer client.Close()
-
-			// 创建会话
-			session, err := client.NewSession()
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			defer session.Close()
-
-			// 测试连通性
-			tHost := strings.Split(target, ":")[0]
-			tPort := strings.Split(target, ":")[1]
-			cmd := fmt.Sprintf("echo quit | timeout --signal=9 6 telnet %s %s", tHost, tPort)
-			buf, _ := session.CombinedOutput(cmd)
-
-			// 判断端口是否可以正常连接上
-			switch {
-			case strings.Contains(string(buf), "Killed"):
-				log.Printf("失败 %s killed %s\n", ip, target)
-			case strings.Contains(string(buf), "refused"):
-				log.Printf("失败 %s refused %s\n", ip, target)
-			case strings.Contains(string(buf), "timed out"):
-				log.Printf("失败 %s timed out %s\n", ip, target)
-			case strings.Contains(string(buf), "bash") || strings.Contains(string(buf), "No such file"):
-				log.Printf("失败 %s telnet not installed %s\n", ip, target)
-			// No route to
-			case strings.Contains(string(buf), "route"):
-				log.Printf("失败 %s no route %s\n", ip, target)
-
-			// pong
-			case strings.Contains(string(buf), "^]"):
-				log.Printf("成功 %s pong %s\n", ip, target)
-			// no match print
-			default:
-				log.Printf("失败+++ " + string(buf))
-			}
-			// read from channel
-			<-ch
-		}(ip)
+	if err != nil {
+		// login fail continue to next ip
+		log.Printf("login false %s, err:%s\n: ", src, err)
+		return
 	}
+	defer client.Close()
 
-	// Wait for all login goroutines to finish
-	wgIp.Wait()
+	// 创建会话
+	session, err := client.NewSession()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer session.Close()
+
+	// 测试连通性
+	tHost := strings.Split(target, ":")[0]
+	tPort := strings.Split(target, ":")[1]
+	cmd := fmt.Sprintf("echo quit | timeout --signal=9 6 telnet %s %s", tHost, tPort)
+	buf, _ := session.CombinedOutput(cmd)
+
+	// 判断端口是否可以正常连接上
+	switch {
+	case strings.Contains(string(buf), "Killed"):
+		log.Printf("失败 %s killed %s\n", src, target)
+	case strings.Contains(string(buf), "refused"):
+		log.Printf("失败 %s refused %s\n", src, target)
+	case strings.Contains(string(buf), "timed out"):
+		log.Printf("失败 %s timed out %s\n", src, target)
+	// no  telnet
+	case strings.Contains(string(buf), "bash") || strings.Contains(string(buf), "No such file"):
+		log.Printf("失败 %s telnet not installed %s\n", src, target)
+	// No route to
+	case strings.Contains(string(buf), "route"):
+		log.Printf("失败 %s no route %s\n", src, target)
+	// pong
+	case strings.Contains(string(buf), "^]"):
+		log.Printf("成功 %s pong %s\n", src, target)
+	// no match print
+	default:
+		log.Printf("失败+++ " + string(buf))
+	}
 }
 
 func init() {
@@ -121,19 +111,21 @@ func init() {
 func main() {
 	readYaml()
 
-	// linux default MaxSessions 10
-	ch := make(chan int, 8)
+	// linux default MaxSessions 8
+	sem := make(chan struct{}, 8)
 
-	for _, target := range config.Target {
-		ch <- 1
-		go doTelnet(target, ch)
-	}
-	// wait...
-	for {
-		if len(ch) == 0 {
-			break
+	// 并发执行
+	var wg sync.WaitGroup
+
+	for _, src := range config.IPs {
+		for _, target := range config.Target {
+			wg.Add(1)
+			go doTelnet(src, target, sem, &wg)
 		}
 	}
+	// wait...
+	wg.Wait()
+	close(sem)
 }
 
 func handleErr(err error) {
