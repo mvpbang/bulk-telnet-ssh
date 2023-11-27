@@ -35,48 +35,55 @@ func readYaml() {
 	handleErr(err)
 }
 
-// 测试联通性
-func doTelnet(src string, target string, sem chan struct{}, wg *sync.WaitGroup) {
-	defer func() {
-		// 释放信号通告，允许新的会话加入
-		<-sem
-		wg.Done()
-	}()
-	// 从通道获取信号，满了则阻塞
-	sem <- struct{}{}
-
-	// Create a SSH client
-	client, err := ssh.Dial("tcp", src, &ssh.ClientConfig{
-		User: config.Auth.User,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(config.Auth.Password),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         3 * time.Second,
-	})
-
-	if err != nil {
-		// login fail continue to next ip
-		log.Printf("login false %s, err:%s\n: ", src, err)
-		return
+func do(target string, sem chan int, wg *sync.WaitGroup) {
+	defer wg.Done()
+	//for .. ips
+	for _, src := range config.IPs {
+		// Create a SSH client
+		client, err := ssh.Dial("tcp", src, &ssh.ClientConfig{
+			User: config.Auth.User,
+			Auth: []ssh.AuthMethod{
+				ssh.Password(config.Auth.Password),
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         3 * time.Second,
+		})
+		// print and next
+		if err != nil {
+			// login fail continue to next ip
+			log.Printf("login false %s, err:%s\n: ", src, err)
+		} else {
+			// bulk session and limit telnet by semaphore
+			sem <- 1
+			go doTelnet(client, src, target, sem)
+		}
 	}
+}
+
+func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
+	defer func() {
+		// free semaphore, allow next
+		<-sem
+	}()
+
 	defer client.Close()
 
-	// 创建会话
+	// create session
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println(err)
 		return
 	}
+
 	defer session.Close()
 
-	// 测试连通性
+	// test pong
 	tHost := strings.Split(target, ":")[0]
 	tPort := strings.Split(target, ":")[1]
 	cmd := fmt.Sprintf("echo quit | timeout --signal=9 6 telnet %s %s", tHost, tPort)
 	buf, _ := session.CombinedOutput(cmd)
 
-	// 判断端口是否可以正常连接上
+	// check pong
 	switch {
 	case strings.Contains(string(buf), "Killed"):
 		log.Printf("失败 %s killed %s\n", src, target)
@@ -95,7 +102,7 @@ func doTelnet(src string, target string, sem chan struct{}, wg *sync.WaitGroup) 
 		log.Printf("成功 %s pong %s\n", src, target)
 	// no match print
 	default:
-		log.Printf("失败+++ " + string(buf))
+		log.Printf("失败+++ %s->%s: "+string(buf), src, target)
 	}
 }
 
@@ -103,6 +110,7 @@ func init() {
 	logFile2, err := os.OpenFile("ssh.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	handleErr(err)
 
+	//multi writer
 	mw := io.MultiWriter(os.Stdout, logFile2)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.SetOutput(mw)
@@ -112,20 +120,21 @@ func main() {
 	readYaml()
 
 	// linux default MaxSessions 8
-	sem := make(chan struct{}, 8)
+	sem := make(chan int, 8)
 
-	// 并发执行
+	// parallel do
 	var wg sync.WaitGroup
-
-	for _, src := range config.IPs {
-		for _, target := range config.Target {
-			wg.Add(1)
-			go doTelnet(src, target, sem, &wg)
-		}
+	for _, target := range config.Target {
+		wg.Add(1)
+		go do(target, sem, &wg)
 	}
 	// wait...
 	wg.Wait()
-	close(sem)
+	for {
+		if len(sem) == 0 {
+			break
+		}
+	}
 }
 
 func handleErr(err error) {

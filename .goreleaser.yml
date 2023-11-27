@@ -16,7 +16,7 @@ builds:
       - linux_amd64
       - linux_arm64
       - windows_amd64
-
+      - darwin_amd64
 archives:
   - format: tar.gz
     # use zip for windows archives
