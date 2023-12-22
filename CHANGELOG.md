@@ -23,3 +23,6 @@
 
 # v0.0.11
 - 对ips并发不做限制，target限制并发8(linux default max session 10)
+
+# v0.0.12
+- fix golang.org/x/crypto v0.11.0 -> v0.17.0
