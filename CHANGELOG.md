@@ -26,3 +26,7 @@
 
 # v0.0.12
 - fix golang.org/x/crypto v0.11.0 -> v0.17.0
+
+# v0.0.13
+- 支持自定义target并发数,ips默认端口
+- telnet超时控制6s->3s,保持和ssh超时一致

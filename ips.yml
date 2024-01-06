@@ -2,10 +2,12 @@
 auth:
   user: root
   password: redhat
+  port: 2222
+  concurrency: 8
 
 # 批量ssh登录ip
 ips:
-  -  172.24.20.31:22
+  -  172.24.20.31:23
   -  172.24.20.100:22
 
 # 测试端口连通性

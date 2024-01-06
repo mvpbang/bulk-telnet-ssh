@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
@@ -19,8 +20,10 @@ type Top struct {
 }
 
 type Auth struct {
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
+	User        string `yaml:"user"`
+	Password    string `yaml:"password"`
+	Port        string `yaml:"port"`
+	Concurrency int    `yaml:"concurrency"`
 }
 
 // 全局变量
@@ -39,8 +42,15 @@ func do(target string, sem chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	//for .. ips
 	for _, src := range config.IPs {
+		//ipaddr = host:port
+		var ipaddr string
+		if strings.Contains(src, ":") {
+			ipaddr = src
+		} else {
+			ipaddr = src + ":" + config.Auth.Port
+		}
 		// Create a SSH client
-		client, err := ssh.Dial("tcp", src, &ssh.ClientConfig{
+		client, err := ssh.Dial("tcp", ipaddr, &ssh.ClientConfig{
 			User: config.Auth.User,
 			Auth: []ssh.AuthMethod{
 				ssh.Password(config.Auth.Password),
@@ -51,11 +61,11 @@ func do(target string, sem chan int, wg *sync.WaitGroup) {
 		// print and next
 		if err != nil {
 			// login fail continue to next ip
-			log.Printf("login false %s, err:%s\n: ", src, err)
+			log.Printf("login false %s, err:%s\n: ", ipaddr, err)
 		} else {
 			// bulk session and limit telnet by semaphore
 			sem <- 1
-			go doTelnet(client, src, target, sem)
+			go doTelnet(client, ipaddr, target, sem)
 		}
 	}
 }
@@ -65,7 +75,6 @@ func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
 		// free semaphore, allow next
 		<-sem
 	}()
-
 	defer client.Close()
 
 	// create session
@@ -74,13 +83,12 @@ func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
 		log.Println(err)
 		return
 	}
-
 	defer session.Close()
 
 	// test pong
 	tHost := strings.Split(target, ":")[0]
 	tPort := strings.Split(target, ":")[1]
-	cmd := fmt.Sprintf("echo quit | timeout --signal=9 6 telnet %s %s", tHost, tPort)
+	cmd := fmt.Sprintf("echo quit | timeout --signal=9 3 telnet %s %s", tHost, tPort)
 	buf, _ := session.CombinedOutput(cmd)
 
 	// check pong
@@ -120,7 +128,7 @@ func main() {
 	readYaml()
 
 	// linux default MaxSessions 8
-	sem := make(chan int, 8)
+	sem := make(chan int, config.Auth.Concurrency)
 
 	// parallel do
 	var wg sync.WaitGroup
@@ -134,6 +142,25 @@ func main() {
 		if len(sem) == 0 {
 			break
 		}
+	}
+	defer printFail()
+}
+
+func printFail() {
+	f, err := os.Open("ssh.log")
+	handleErr(err)
+	defer f.Close()
+	fmt.Println("汇总信息：", strings.Repeat("+", 20))
+	count := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), "失败") {
+			count++
+			fmt.Println(scanner.Text())
+		}
+	}
+	if count == 0 {
+		fmt.Println("策略全部检测通过！！！：")
 	}
 }
 
