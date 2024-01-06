@@ -3,7 +3,7 @@ auth:
   user: root
   password: redhat
   port: 2222
-  concurrency: 8
+  concurrency: 29
 
 # 批量ssh登录ip
 ips:

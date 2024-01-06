@@ -58,6 +58,7 @@ target:
 //错误日志
 1ogin false x:36008,err:ssh: handshake falled: read tcp y:51754-z:36000: read: connection reset by pee
 
-//解决办法
-降低并发数ips.yml auth.concurrency: 6
+//解决办法 
+由于linux maxsession 10，所以最大并发不能超过，建议设置8,出现handshake，会自动重试3次
+降低并发数ips.yml auth.concurrency: 8
 ```

@@ -42,6 +42,9 @@ func do(target string, sem chan int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	//for .. ips
 	for _, src := range config.IPs {
+		//定义重试次数
+		retryCount := 3
+	retry:
 		//ipaddr = host:port
 		var ipaddr string
 		if strings.Contains(src, ":") {
@@ -59,13 +62,22 @@ func do(target string, sem chan int, wg *sync.WaitGroup) {
 			Timeout:         3 * time.Second,
 		})
 		// print and next
-		if err != nil {
-			// login fail continue to next ip
-			log.Printf("login false %s, err:%s\n: ", ipaddr, err)
-		} else {
+		if err != nil && strings.Contains(err.Error(), "handshake") {
+			//retry
+			sep := strings.Repeat("*", 20)
+			fmt.Println(sep, "发现handshake进入retry:", err)
+			if retryCount > 0 {
+				time.Sleep(time.Second * 3)
+				goto retry
+			}
+			retryCount--
+		} else if err == nil {
 			// bulk session and limit telnet by semaphore
 			sem <- 1
 			go doTelnet(client, ipaddr, target, sem)
+		} else {
+			// login fail continue to next ip
+			log.Printf("login false %s, err:%s\n: ", ipaddr, err)
 		}
 	}
 }
@@ -90,7 +102,6 @@ func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
 	tPort := strings.Split(target, ":")[1]
 	cmd := fmt.Sprintf("echo quit | timeout --signal=9 3 telnet %s %s", tHost, tPort)
 	buf, _ := session.CombinedOutput(cmd)
-
 	// check pong
 	switch {
 	case strings.Contains(string(buf), "Killed"):
@@ -125,11 +136,15 @@ func init() {
 }
 
 func main() {
+	defer printFail()
+
 	readYaml()
-
 	// linux default MaxSessions 8
+	if config.Auth.Concurrency > 10 {
+		fmt.Println("Auth.Concurrency 不能大于10")
+		return
+	}
 	sem := make(chan int, config.Auth.Concurrency)
-
 	// parallel do
 	var wg sync.WaitGroup
 	for _, target := range config.Target {
@@ -143,24 +158,36 @@ func main() {
 			break
 		}
 	}
-	defer printFail()
+
 }
 
 func printFail() {
 	f, err := os.Open("ssh.log")
 	handleErr(err)
 	defer f.Close()
-	fmt.Println("汇总信息：", strings.Repeat("+", 20))
-	count := 0
+
+	fmt.Println(strings.Repeat("+", 20), "汇总信息：", strings.Repeat("+", 20))
+	fcount := 0
+	ocount := 0
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), "失败") {
-			count++
-			fmt.Println(scanner.Text())
+		info := scanner.Text()
+		if strings.Contains(info, "失败") {
+			fcount++
+			fmt.Println(info)
+		}
+		if !strings.Contains(info, "失败") && !strings.Contains(info, "成功") {
+			ocount++
+			fmt.Println(info)
 		}
 	}
-	if count == 0 {
-		fmt.Println("策略全部检测通过！！！：")
+	switch {
+	case fcount == 0 && ocount == 0:
+		fmt.Println("策略全部检测通过")
+	case ocount != 0:
+		fmt.Println("存在错误请检查日志")
+	default:
+		fmt.Println("策略部分成功，请检查失败的日志")
 	}
 }
 
