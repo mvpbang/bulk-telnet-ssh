@@ -31,5 +31,5 @@
 - 支持自定义target并发数,ips默认端口
 - telnet超时控制6s->3s,保持和ssh超时一致
 
-# v0.0.14
+# v0.0.14 [ok]
 - 错误出现handshake，retry 3次
