@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -38,13 +39,17 @@ func readYaml() {
 	handleErr(err)
 }
 
-func do(target string, sem chan int, wg *sync.WaitGroup) {
+func do(target string, sem chan struct{}, targetWg *sync.WaitGroup, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	tHost, tPort, err := net.SplitHostPort(target)
+	if err != nil {
+		log.Printf("失败 %s target format invalid: %v\n", target, err)
+		return
+	}
+
 	//for .. ips
 	for _, src := range config.IPs {
-		//定义重试次数
-		retryCount := 3
-	retry:
 		//ipaddr = host:port
 		var ipaddr string
 		if strings.Contains(src, ":") {
@@ -52,37 +57,47 @@ func do(target string, sem chan int, wg *sync.WaitGroup) {
 		} else {
 			ipaddr = src + ":" + config.Auth.Port
 		}
-		// Create a SSH client
-		client, err := ssh.Dial("tcp", ipaddr, &ssh.ClientConfig{
-			User: config.Auth.User,
-			Auth: []ssh.AuthMethod{
-				ssh.Password(config.Auth.Password),
-			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-			Timeout:         3 * time.Second,
-		})
-		// print and next
-		if err != nil && strings.Contains(err.Error(), "handshake") {
-			//retry
+
+		var client *ssh.Client
+		for retryCount := 0; retryCount < 3; retryCount++ {
+			// Create a SSH client
+			client, err = ssh.Dial("tcp", ipaddr, &ssh.ClientConfig{
+				User: config.Auth.User,
+				Auth: []ssh.AuthMethod{
+					ssh.Password(config.Auth.Password),
+				},
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+				Timeout:         3 * time.Second,
+			})
+
+			if err == nil {
+				break
+			}
+
+			if !strings.Contains(err.Error(), "handshake") {
+				break
+			}
+
 			sep := strings.Repeat("*", 20)
 			fmt.Println(sep, "发现handshake进入retry:", err)
-			if retryCount > 0 {
-				time.Sleep(time.Second * 3)
-				goto retry
-			}
-			retryCount--
-		} else if err == nil {
-			// bulk session and limit telnet by semaphore
-			sem <- 1
-			go doTelnet(client, ipaddr, target, sem)
-		} else {
-			// login fail continue to next ip
-			log.Printf("login false %s, err:%s\n: ", ipaddr, err)
+			time.Sleep(3 * time.Second)
 		}
+
+		if err != nil {
+			// login fail continue to next ip
+			log.Printf("login false %s, err:%s\n", ipaddr, err)
+			continue
+		}
+
+		// bulk session and limit telnet by semaphore
+		targetWg.Add(1)
+		sem <- struct{}{}
+		go doTelnet(client, ipaddr, tHost, tPort, sem, targetWg)
 	}
 }
 
-func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
+func doTelnet(client *ssh.Client, src string, tHost string, tPort string, sem chan struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
 	defer func() {
 		// free semaphore, allow next
 		<-sem
@@ -98,8 +113,7 @@ func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
 	defer session.Close()
 
 	// test pong
-	tHost := strings.Split(target, ":")[0]
-	tPort := strings.Split(target, ":")[1]
+	target := net.JoinHostPort(tHost, tPort)
 	cmd := fmt.Sprintf("echo quit | timeout --signal=9 3 telnet %s %s", tHost, tPort)
 	buf, _ := session.CombinedOutput(cmd)
 	// check pong
@@ -121,7 +135,7 @@ func doTelnet(client *ssh.Client, src string, target string, sem chan int) {
 		log.Printf("成功 %s pong %s\n", src, target)
 	// no match print
 	default:
-		log.Printf("失败+++ %s->%s: "+string(buf), src, target)
+		log.Printf("失败+++ %s->%s: %s\n", src, target, string(buf))
 	}
 }
 
@@ -144,20 +158,17 @@ func main() {
 		fmt.Println("Auth.Concurrency 不能大于10")
 		return
 	}
-	sem := make(chan int, config.Auth.Concurrency)
+	sem := make(chan struct{}, config.Auth.Concurrency)
+	telnetWg := sync.WaitGroup{}
 	// parallel do
 	var wg sync.WaitGroup
 	for _, target := range config.Target {
 		wg.Add(1)
-		go do(target, sem, &wg)
+		go do(target, sem, &telnetWg, &wg)
 	}
 	// wait...
 	wg.Wait()
-	for {
-		if len(sem) == 0 {
-			break
-		}
-	}
+	telnetWg.Wait()
 
 }
 
