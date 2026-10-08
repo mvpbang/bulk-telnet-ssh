@@ -1,0 +1,20 @@
+[package]
+name = "bulk-telnet-ssh"
+version = "0.2.0"
+edition = "2021"
+authors = ["mac"]
+description = "High-performance bulk network policy reachability probe tool over SSH"
+
+[dependencies]
+tokio = { version = "1.40", features = ["full"] }
+ssh2 = { version = "0.9", features = ["vendored-openssl"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = "0.4"
+colored = "2.1"
+
+[dev-dependencies]
+tempfile = "3.12"

@@ -1,0 +1,6 @@
+/target/
+Cargo.lock
+ssh.log
+*.exe
+.idea/
+.DS_Store
