@@ -116,7 +116,7 @@ impl TaskRunner {
 
         let mut probe_handles = Vec::new();
         for (target_host, target_port) in &resolved_targets {
-            for (_, client) in &active_clients {
+            for client in active_clients.values() {
                 let client = client.clone();
                 let t_host = target_host.clone();
                 let t_port = *target_port;

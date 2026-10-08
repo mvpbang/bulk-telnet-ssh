@@ -2,14 +2,19 @@ use crate::probe::ProbeStatus;
 use crate::ssh::SshClient;
 use std::time::Duration;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectTcpError {
+    FallbackRequired,
+}
+
 /// 使用 SSH 2.0 协议标准的 direct-tcpip 通道探测远端到目标的连通性
-/// 若返回 Err(()) 则代表被远端 sshd 限制（如 AllowTcpForwarding no）或其它原因，需要降级到 bash
+/// 若返回 Err(DirectTcpError::FallbackRequired) 则代表被远端 sshd 限制（如 AllowTcpForwarding no）或其它原因，需要降级到 bash
 pub fn probe_direct_tcp(
     client: &SshClient,
     target_host: &str,
     target_port: u16,
     timeout: Duration,
-) -> Result<ProbeStatus, ()> {
+) -> Result<ProbeStatus, DirectTcpError> {
     client.with_session(|sess| {
         sess.set_timeout(timeout.as_millis() as u32);
 
@@ -28,7 +33,7 @@ pub fn probe_direct_tcp(
                     || msg.contains("administratively")
                     || code == ssh2::ErrorCode::Session(-18) /* LIBSSH2_ERROR_CHANNEL_REQUEST_DENIED */
                 {
-                    return Err(());
+                    return Err(DirectTcpError::FallbackRequired);
                 }
 
                 // 连接被目标拒绝（端口未监听）
@@ -50,7 +55,7 @@ pub fn probe_direct_tcp(
                 }
 
                 // 其他情况，若无法明确判断，尝试降级到 bash 验证，避免误报
-                Err(())
+                Err(DirectTcpError::FallbackRequired)
             }
         }
     })
